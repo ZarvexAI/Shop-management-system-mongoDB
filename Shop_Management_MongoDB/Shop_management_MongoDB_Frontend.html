@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ShopKeeper</title>
+<style>
+:root{--bg:#f3f4f7;--card:#fff;--ink:#1d2233;--mute:#69708a;--line:#dfe2ea;--side:#1f2a5c;--acc:#f2a900;--pri:#2b3a8f;--bad:#c62828;--badbg:#fdecec}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.45 "Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--ink);display:flex;min-height:100vh}
+aside{width:210px;background:var(--side);padding:20px 12px;position:sticky;top:0;height:100vh;flex:none}
+aside h1{font-size:20px;color:#fff;margin:0 8px 20px}
+nav button{display:block;width:100%;text-align:left;background:none;border:0;color:#c9cff0;padding:10px 12px;border-radius:8px;font:inherit;cursor:pointer;margin-bottom:4px}
+nav button:hover{background:#2e3b78;color:#fff}
+nav button.on{background:var(--acc);color:#1d2233;font-weight:600}
+main{flex:1;padding:24px;min-width:0}
+h2{margin:0 0 16px;font-size:22px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px}
+.card,.box{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px}
+.box{margin-bottom:16px}
+.card small{color:var(--mute);display:block;margin-bottom:6px}
+.card b{font-size:24px}
+.card.warn{background:var(--badbg);border-color:#f0b8b8}
+.card.warn b{color:var(--bad)}
+.bar,.row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;align-items:center}
+input,select{padding:9px 10px;border:1px solid var(--line);border-radius:8px;font:inherit;background:#fff;min-width:0}
+input:focus,select:focus,button:focus-visible{outline:2px solid var(--pri);outline-offset:1px}
+button{font:inherit;padding:8px 14px;border-radius:8px;border:1px solid var(--line);background:#fff;cursor:pointer}
+button.pri{background:var(--pri);color:#fff;border-color:var(--pri)}
+button.del{color:var(--bad);border-color:#f0c4c4}
+.tw{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:10px}
+table{width:100%;border-collapse:collapse}
+th,td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-size:13px;color:var(--mute);font-weight:600}
+tr.low td{background:var(--badbg);color:var(--bad)}
+tr.click{cursor:pointer}
+td button{padding:5px 10px;margin-right:6px}
+.empty{text-align:center;color:var(--mute)}
+.slip{font-family:Consolas,monospace;border:2px dashed #b9a56a;background:#fffdf3;border-radius:4px;padding:16px;max-width:420px}
+.slip h3{margin:0 0 8px;text-align:center}
+.slip div{display:flex;justify-content:space-between;gap:12px}
+.slip hr{border:0;border-top:1px dashed #b9a56a;margin:8px 0}
+.total{font-size:20px;font-weight:700;margin:6px 0 12px}
+#toast{position:fixed;right:20px;top:20px;background:#1d2233;color:#fff;padding:12px 16px;border-radius:10px;opacity:0;transition:opacity .2s;pointer-events:none;max-width:340px;z-index:9}
+#toast.show{opacity:1}
+#toast.bad{background:var(--bad)}
+@media(max-width:760px){body{flex-direction:column}aside{width:100%;height:auto;position:static;padding:10px}aside h1{margin:4px 8px 8px}nav{display:flex;overflow-x:auto;gap:4px}nav button{width:auto;white-space:nowrap;margin:0}main{padding:14px}}
+</style>
+</head>
+<body>
+<aside>
+  <h1>ShopKeeper</h1>
+  <nav>
+    <button data-p="dashboard">Dashboard</button>
+    <button data-p="products">Products</button>
+    <button data-p="categories">Categories</button>
+    <button data-p="sale">New sale</button>
+    <button data-p="history">Sales history</button>
+  </nav>
+</aside>
+<main>
+<div id="toast"></div>
+
+<!-- DASHBOARD -->
+<section id="dashboard" hidden>
+  <h2>Dashboard</h2>
+  <div class="cards" id="cards"></div>
+</section>
+
+<!-- PRODUCTS -->
+<section id="products" hidden>
+  <h2>Products</h2>
+  <div class="bar">
+    <input id="q" placeholder="Search by name" aria-label="Search products">
+    <select id="fCat" aria-label="Filter by category"></select>
+    <button class="pri" id="addP">Add product</button>
+  </div>
+  <form id="pform" class="box" hidden>
+    <b id="ptitle">Add product</b>
+    <div class="row" style="margin-top:10px">
+      <input id="pName" placeholder="Product name" required>
+      <select id="pCat" aria-label="Category"></select>
+      <input id="pPrice" type="number" step="0.01" min="0" placeholder="Price (Rs.)" required>
+      <input id="pStock" type="number" min="0" placeholder="Stock" required>
+      <input id="pLimit" type="number" min="0" placeholder="Low stock limit (5)">
+      <input id="pDesc" placeholder="Description (optional)">
+    </div>
+    <button class="pri" type="submit">Save product</button>
+    <button type="button" id="cancelP">Cancel</button>
+  </form>
+  <div class="tw"><table>
+    <thead><tr><th>Name</th><th>Category</th><th>Price</th><th>Stock</th><th>Low limit</th><th>Actions</th></tr></thead>
+    <tbody id="ptable"></tbody>
+  </table></div>
+</section>
+
+<!-- CATEGORIES -->
+<section id="categories" hidden>
+  <h2>Categories</h2>
+  <form id="cform" class="box">
+    <div class="row">
+      <input id="cName" placeholder="Category name" required>
+      <input id="cDesc" placeholder="Description (optional)">
+      <button class="pri" type="submit" id="cBtn">Add category</button>
+      <button type="button" id="cCancel">Clear</button>
+    </div>
+  </form>
+  <div class="tw"><table>
+    <thead><tr><th>Name</th><th>Description</th><th>Actions</th></tr></thead>
+    <tbody id="ctable"></tbody>
+  </table></div>
+</section>
+
+<!-- NEW SALE -->
+<section id="sale" hidden>
+  <h2>New sale</h2>
+  <div class="box">
+    <div class="row">
+      <input id="cust" placeholder="Customer name (optional)">
+    </div>
+    <div class="row">
+      <select id="sProd" aria-label="Product" style="min-width:260px"></select>
+      <input id="sQty" type="number" min="1" value="1" style="width:90px" aria-label="Quantity">
+      <button id="addItem">Add to bill</button>
+    </div>
+  </div>
+  <div class="tw"><table>
+    <thead><tr><th>Product</th><th>Price</th><th>Qty</th><th>Line total</th><th></th></tr></thead>
+    <tbody id="cart"></tbody>
+  </table></div>
+  <p class="total">Total: <span id="sTotal">Rs. 0</span></p>
+  <button class="pri" id="done">Complete sale</button>
+  <div id="receipt" style="margin-top:18px"></div>
+</section>
+
+<!-- SALES HISTORY -->
+<section id="history" hidden>
+  <h2>Sales history</h2>
+  <div class="bar"><input id="hq" placeholder="Search by customer name" aria-label="Search sales"></div>
+  <div class="tw"><table>
+    <thead><tr><th>Date</th><th>Customer</th><th>Items</th><th>Total</th><th></th></tr></thead>
+    <tbody id="htable"></tbody>
+  </table></div>
+  <p class="empty">Click a sale to see what was bought.</p>
+</section>
+</main>
+
+<script>
+// The address of your FastAPI server. Change it if you run on another port.
+const API = "http://127.0.0.1:8000";
+
+// ---------- small helpers ----------
+const $ = id => document.getElementById(id);
+const rs = n => "Rs. " + Number(n || 0).toLocaleString();
+const fmt = s => s ? new Date(s).toLocaleString() : "";
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const pick = (d, ...keys) => { for (const k of keys) if (d[k] !== undefined) return d[k]; return 0; };
+const EMPTY = n => `<tr><td colspan="${n}" class="empty">Nothing here yet</td></tr>`;
+let tm;
+const debounce = f => () => { clearTimeout(tm); tm = setTimeout(f, 350); };
+
+// Shows a message in the corner. bad = true makes it red.
+function toast(msg, bad) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.className = bad ? "bad show" : "show";
+  clearTimeout(toast.id);
+  toast.id = setTimeout(() => t.className = "", 3500);
+}
+
+// Calls the API. Throws an Error with a readable message when something fails.
+// Works with your current style (status: "error") and with real HTTP errors (detail).
+async function api(path, method = "GET", body) {
+  let res, json;
+  try {
+    res = await fetch(API + path, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: body ? JSON.stringify(body) : undefined
+    });
+  } catch (e) {
+    throw new Error("Cannot reach the API. Is the server running and is CORS added in main.py?");
+  }
+  try { json = await res.json(); } catch (e) { throw new Error("Unexpected reply from server (" + res.status + ")"); }
+  if (!res.ok) {
+    const d = json.detail;
+    throw new Error(Array.isArray(d) ? d.map(x => x.loc.slice(-1) + ": " + x.msg).join("; ") : (d || json.message || "Error " + res.status));
+  }
+  if (json.status === "error" || (json.status === undefined && json.message && json.data === undefined)) {
+    throw new Error(json.message || "Something went wrong");
+  }
+  return json;
+}
+
+// Loads a list from the API. On failure shows the message and returns an empty list.
+async function fetchList(path) {
+  try { const r = await api(path); return Array.isArray(r.data) ? r.data : []; }
+  catch (e) { toast(e.message, true); return []; }
+}
+
+// Runs an action (save, delete, restock...), shows the result, then runs done().
+async function act(path, method, body, ask, done) {
+  if (ask && !confirm(ask)) return;
+  try { const r = await api(path, method, body); toast(r.message || "Done"); done(); }
+  catch (e) { toast(e.message, true); }
+}
+
+// ---------- navigation ----------
+const loaders = { dashboard: loadDash, products: loadProducts, categories: loadCats, sale: loadSale, history: loadHistory };
+function show(p) {
+  Object.keys(loaders).forEach(x => $(x).hidden = x !== p);
+  document.querySelectorAll("nav button").forEach(b => b.classList.toggle("on", b.dataset.p === p));
+  loaders[p]();
+}
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => show(b.dataset.p));
+
+// ---------- dashboard ----------
+async function loadDash() {
+  try {
+    const d = (await api("/Dashboard/summary")).data || {};
+    const low = pick(d, "Low_stock_count", "low_stock_count");
+    const cards = [
+      ["Total products", pick(d, "Total_product", "total_products")],
+      ["Stock value", rs(pick(d, "Total_stock_value", "total_stock_value"))],
+      ["Low stock items", low, low > 0],
+      ["Sales today", pick(d, "Todays_sales", "today_sales_count")],
+      ["Revenue today", rs(pick(d, "Today_sales_total", "today_sales_total"))]
+    ];
+    $("cards").innerHTML = cards.map(c => `<div class="card${c[2] ? " warn" : ""}"><small>${c[0]}</small><b>${c[1]}</b></div>`).join("");
+  } catch (e) { toast(e.message, true); }
+}
+
+// ---------- categories ----------
+let cats = [], catEdit = null;
+async function getCats() {
+  cats = await fetchList("/Categories/getall");
+  const opts = cats.map(c => `<option>${esc(c.category_name)}</option>`).join("");
+  const keep = $("fCat").value;
+  $("pCat").innerHTML = opts;
+  $("fCat").innerHTML = '<option value="">All categories</option>' + opts;
+  $("fCat").value = keep;
+}
+async function loadCats() {
+  await getCats();
+  $("ctable").innerHTML = cats.map(c => `<tr><td>${esc(c.category_name)}</td><td>${esc(c.category_description || "")}</td>
+    <td><button onclick="editCat('${c._id}')">Edit</button><button class="del" onclick="delCat('${c._id}')">Delete</button></td></tr>`).join("") || EMPTY(3);
+}
+function resetCat() { catEdit = null; $("cform").reset(); $("cBtn").textContent = "Add category"; }
+function editCat(id) {
+  const c = cats.find(x => x._id === id);
+  catEdit = id; $("cName").value = c.category_name; $("cDesc").value = c.category_description || "";
+  $("cBtn").textContent = "Save changes"; $("cName").focus();
+}
+function delCat(id) { act("/Categories/delete/" + id, "DELETE", null, "Delete this category?", loadCats); }
+$("cCancel").onclick = resetCat;
+$("cform").onsubmit = e => {
+  e.preventDefault();
+  const body = { category_name: $("cName").value.trim(), category_description: $("cDesc").value.trim() || null };
+  if (!body.category_name) return toast("Enter a category name", true);
+  act(catEdit ? "/Categories/update/" + catEdit : "/Categories/create", catEdit ? "PUT" : "POST", body, null, () => { resetCat(); loadCats(); });
+};
+
+// ---------- products ----------
+let prods = [], editId = null;
+async function loadProducts() { await getCats(); showForm(false); refreshProducts(); }
+
+async function refreshProducts() {
+  const q = $("q").value.trim(), c = $("fCat").value;
+  let path = "/Products/getall";
+  if (q) path = "/Products/getbyname/" + encodeURIComponent(q);
+  else if (c) path = "/Products/getby/" + encodeURIComponent(c);
+  prods = await fetchList(path);
+  if (q && c) prods = prods.filter(p => (p.product_category || "").toLowerCase() === c.toLowerCase());
+  $("ptable").innerHTML = prods.map(p => {
+    const low = p.product_stock <= p.product_low_stock_limit;   // low stock rows are shown in red
+    return `<tr class="${low ? "low" : ""}"><td>${esc(p.product_name)}</td><td>${esc(p.product_category)}</td>
+      <td>${rs(p.product_price)}</td><td>${p.product_stock}${low ? " (low)" : ""}</td><td>${p.product_low_stock_limit}</td>
+      <td><button onclick="editProd('${p._id}')">Edit</button><button onclick="restock('${p._id}')">Restock</button><button class="del" onclick="delProd('${p._id}')">Delete</button></td></tr>`;
+  }).join("") || EMPTY(6);
+}
+
+function showForm(open, p) {
+  $("pform").hidden = !open;
+  if (!open) return;
+  editId = p ? p._id : null;
+  $("ptitle").textContent = p ? "Edit product" : "Add product";
+  $("pName").value = p ? p.product_name : "";
+  if (p) $("pCat").value = p.product_category;
+  $("pPrice").value = p ? p.product_price : "";
+  $("pStock").value = p ? p.product_stock : "";
+  $("pLimit").value = p ? p.product_low_stock_limit : "";
+  $("pDesc").value = p ? (p.product_description || "") : "";
+}
+$("addP").onclick = () => cats.length ? showForm(true) : toast("Create a category first", true);
+$("cancelP").onclick = () => showForm(false);
+const editProd = id => showForm(true, prods.find(p => p._id === id));
+const delProd = id => act("/Products/delete/" + id, "DELETE", null, "Delete this product?", refreshProducts);
+function restock(id) {
+  const n = parseInt(prompt("How many items to add to the stock?"));
+  if (!(n > 0)) return;
+  act("/Products/restock/" + id, "PATCH", { restock_quantity: n }, null, refreshProducts);
+}
+$("pform").onsubmit = e => {
+  e.preventDefault();
+  const body = {
+    product_name: $("pName").value.trim(), product_category: $("pCat").value,
+    product_price: parseFloat($("pPrice").value), product_stock: parseInt($("pStock").value),
+    product_low_stock_limit: parseInt($("pLimit").value) || 5, product_description: $("pDesc").value.trim() || null
+  };
+  if (!body.product_name) return toast("Enter a product name", true);
+  if (!(body.product_price > 0)) return toast("Price must be greater than 0", true);
+  if (!(body.product_stock >= 0)) return toast("Stock must be 0 or more", true);
+  act(editId ? "/Products/update/" + editId : "/Products/create", editId ? "PUT" : "POST", body, null, () => { showForm(false); refreshProducts(); });
+};
+$("q").oninput = debounce(refreshProducts);
+$("fCat").onchange = refreshProducts;
+
+// ---------- new sale ----------
+let cart = [], stock = [];
+async function fillProd() {
+  stock = await fetchList("/Products/getall");
+  $("sProd").innerHTML = stock.map(p => `<option value="${p._id}"${p.product_stock < 1 ? " disabled" : ""}>${esc(p.product_name)} - ${rs(p.product_price)} (stock ${p.product_stock})</option>`).join("");
+}
+async function loadSale() { $("receipt").innerHTML = ""; await fillProd(); renderCart(); }
+
+function renderCart() {
+  let t = 0;
+  $("cart").innerHTML = cart.map((c, i) => {
+    t += c.price * c.qty;
+    return `<tr><td>${esc(c.name)}</td><td>${rs(c.price)}</td><td>${c.qty}</td><td>${rs(c.price * c.qty)}</td>
+      <td><button class="del" onclick="cart.splice(${i},1);renderCart()">Remove</button></td></tr>`;
+  }).join("") || EMPTY(5);
+  $("sTotal").textContent = rs(t);
+}
+
+$("addItem").onclick = () => {
+  const p = stock.find(x => x._id === $("sProd").value), q = parseInt($("sQty").value);
+  if (!p) return toast("Choose a product", true);
+  if (!(q > 0)) return toast("Enter a quantity of 1 or more", true);
+  const ex = cart.find(x => x.id === p._id), total = (ex ? ex.qty : 0) + q;
+  if (total > p.product_stock) return toast("Not enough stock for " + p.product_name + " (" + p.product_stock + " left)", true);
+  if (ex) ex.qty = total; else cart.push({ id: p._id, name: p.product_name, price: p.product_price, qty: q });
+  renderCart();
+};
+
+$("done").onclick = async () => {
+  if (!cart.length) return toast("Add at least one product", true);
+  const name = $("cust").value.trim();
+  try {
+    // Only ids and quantities are sent. The server reads the prices itself.
+    const r = await api("/Sales/create", "POST", { customer_name: name, items: cart.map(c => ({ product_id: c.id, quantity: c.qty })) });
+    const d = r.data || {};
+    $("receipt").innerHTML = `<div class="slip"><h3>Sale completed</h3>
+      <div><span>Bill</span><span>${esc(d.sale_id)}</span></div>
+      <div><span>Customer</span><span>${esc(name || "Walk-in customer")}</span></div><hr>
+      ${cart.map(c => `<div><span>${esc(c.name)} x ${c.qty}</span><span>${rs(c.price * c.qty)}</span></div>`).join("")}<hr>
+      <div><b>Total</b><b>${rs(d.total_amount)}</b></div></div>`;
+    cart = []; $("cust").value = ""; renderCart(); fillProd();
+    toast(r.message || "Sale completed");
+  } catch (e) { toast(e.message, true); }
+};
+
+// ---------- sales history ----------
+async function loadHistory() {
+  const q = $("hq").value.trim();
+  const rows = await fetchList(q ? "/Sales/getbyname/" + encodeURIComponent(q) : "/Sales/getall");
+  $("htable").innerHTML = rows.map(s => `<tr class="click" onclick="toggle('${s._id}')">
+      <td>${fmt(s.created_at)}</td><td>${esc(s.customer_name)}</td><td>${(s.items || []).length}</td><td>${rs(s.total_amount)}</td>
+      <td><button class="del" onclick="event.stopPropagation();cancelSale('${s._id}')">Cancel sale</button></td></tr>
+    <tr id="d${s._id}" hidden><td colspan="5">${(s.items || []).map(i => `${esc(i.product_name)} x ${i.quantity} at ${rs(i.price)} = ${rs(i.line_total)}`).join("<br>")}</td></tr>`).join("") || EMPTY(5);
+}
+const toggle = id => { const r = $("d" + id); r.hidden = !r.hidden; };
+const cancelSale = id => act("/Sales/delete/" + id, "DELETE", null, "Cancel this sale? The stock will be added back.", loadHistory);
+$("hq").oninput = debounce(loadHistory);
+
+show("dashboard");
+</script>
+</body>
+</html>
