@@ -205,4 +205,4 @@ Invalid request bodies (for example a negative price) are rejected by Pydantic w
 
 ## Credits
 
-Project brief by Scorvix Solutions. The frontend was generated with AI and connected to this API.
+The frontend was generated with AI and connected to this API.
